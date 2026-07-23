@@ -73,7 +73,7 @@ Write-Host "     Removed $deleted large directories" -ForegroundColor $ColorSucc
 
 # Update package.json using Node.js (reliable)
 Write-Host "[*] Updating package.json..." -ForegroundColor $ColorPrimary
-node update-workspaces.js
+node update-workspaces.cjs
 
 # Install minimal dependencies
 Write-Host "[*] Installing minimal dependencies..." -ForegroundColor $ColorPrimary

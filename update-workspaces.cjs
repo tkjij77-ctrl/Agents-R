@@ -21,4 +21,3 @@ pkg.workspaces.packages = existingPackages.map(p => `packages/${p}`);
 fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n', 'utf8');
 
 console.log(`Updated workspaces: ${existingPackages.length} packages`);
-console.log(existingPackages.join(', '));
