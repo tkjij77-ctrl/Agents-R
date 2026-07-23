@@ -1,164 +1,72 @@
-# Agents R - Quick Install Script for PowerShell
-# Usage: irm https://raw.githubusercontent.com/tkjij77-ctrl/Agents-R/main/install.ps1 | iex
+# Agents R - FINAL Lightweight Installer
+# Everything in ONE script - no external files needed
 
-param(
-    [string]$Version = "latest"
-)
-
-$ErrorActionPreference = "Stop"
-
-# Colors
 $ColorPrimary = "Cyan"
 $ColorSuccess = "Green"
-$ColorError = "Red"
 $ColorWarning = "Yellow"
+$ColorError = "Red"
 
-function Write-Step {
-    param([string]$Message)
-    Write-Host "[*] $Message" -ForegroundColor $ColorPrimary
-}
-
-function Write-Success {
-    param([string]$Message)
-    Write-Host "[✓] $Message" -ForegroundColor $ColorSuccess
-}
-
-function Write-Error_ {
-    param([string]$Message)
-    Write-Host "[✗] $Message" -ForegroundColor $ColorError
-}
-
-function Write-Warning_ {
-    param([string]$Message)
-    Write-Host "[!] $Message" -ForegroundColor $ColorWarning
-}
-
-# Banner
 Write-Host ""
-Write-Host "  █████╗ ███████╗ ██████╗ ███╗   ███╗" -ForegroundColor $ColorPrimary
-Write-Host " ██╔══██╗██╔════╝██╔═══██╗████╗ ████║" -ForegroundColor $ColorPrimary
-Write-Host " ███████║███████╗██║   ██║██╔████╔██║" -ForegroundColor $ColorPrimary
-Write-Host " ██╔══██║╚════██║██║   ██║██║╚██╔╝██║" -ForegroundColor $ColorPrimary
-Write-Host " ██║  ██║███████║╚██████╔╝██║ ╚═╝ ██║" -ForegroundColor $ColorPrimary
-Write-Host " ╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═╝     ╚═╝" -ForegroundColor $ColorPrimary
-Write-Host ""
-Write-Host "  Multi-Model AI Collaboration System" -ForegroundColor $ColorSuccess
+Write-Host "  Agents R - FINAL Installer" -ForegroundColor $ColorPrimary
 Write-Host ""
 
 # Check prerequisites
-Write-Step "Checking prerequisites..."
+try { node --version | Out-Null; Write-Host "[OK] Node.js" -ForegroundColor $ColorSuccess }
+catch { Write-Host "[!] Install Node.js" -ForegroundColor $ColorError; exit 1 }
 
-# Check Git
-try {
-    $gitVersion = git --version 2>&1
-    Write-Success "Git found: $gitVersion"
-} catch {
-    Write-Error_ "Git is not installed. Please install Git first: https://git-scm.com/download/win"
-    exit 1
-}
-
-# Check Node.js
-try {
-    $nodeVersion = node --version 2>&1
-    Write-Success "Node.js found: $nodeVersion"
-} catch {
-    Write-Warning_ "Node.js not found. Installing..."
-    winget install OpenJS.NodeJS.LTS --accept-package-agreements --accept-source-agreements
-}
-
-# Check Bun
-try {
-    $bunVersion = bun --version 2>&1
-    Write-Success "Bun found: v$bunVersion"
-} catch {
-    Write-Step "Installing Bun..."
+try { bun --version 2>&1 | Out-Null; Write-Host "[OK] Bun" -ForegroundColor $ColorSuccess }
+catch {
+    Write-Host "[*] Installing Bun..." -ForegroundColor $ColorPrimary
     powershell -Command "& {$(irm bun.sh/install.ps1)}"
     $env:PATH += ";$env:USERPROFILE\.bun\bin"
 }
 
-# Clone repository
+try { git --version | Out-Null; Write-Host "[OK] Git" -ForegroundColor $ColorSuccess }
+catch { Write-Host "[!] Git required" -ForegroundColor $ColorError; exit 1 }
+
+# Clean install
 $InstallDir = "$env:USERPROFILE\agents-r"
-
 if (Test-Path $InstallDir) {
-    Write-Warning_ "Directory $InstallDir already exists"
-    $response = Read-Host "Do you want to update? (y/N)"
-    if ($response -ne "y") {
-        Write-Warning_ "Installation cancelled"
-        exit 0
-    }
-    
-    Write-Step "Updating existing installation..."
-    Set-Location $InstallDir
-    git pull origin main
-} else {
-    Write-Step "Cloning Agents R..."
-    git clone https://github.com/tkjij77-ctrl/Agents-R.git $InstallDir
-    Set-Location $InstallDir
+    Write-Host "[*] Removing old installation..." -ForegroundColor $ColorWarning
+    Remove-Item -Path $InstallDir -Recurse -Force
 }
 
-# Install dependencies
-Write-Step "Installing dependencies..."
-bun install
+Write-Host "[*] Shallow clone..." -ForegroundColor $ColorPrimary
+git clone --depth 1 https://github.com/tkjij77-ctrl/Agents-R.git $InstallDir
+Set-Location $InstallDir
 
-# Build
-Write-Step "Building Agents R..."
-bun run build
+# Delete unnecessary files
+Write-Host "[*] Cleaning..." -ForegroundColor $ColorPrimary
+$paths = @("README.*.md","artifacts","packages/docs","packages/web","packages/storybook",
+    "packages/console","packages/desktop","packages/app","packages/sdk-next","packages/slack",
+    "github","infra","perf","sdks","specs",".github",
+    "packages/core/test","packages/tui/test","packages/llm/test","packages/multi-agent/test")
 
-# Create symlink for global access
+foreach ($p in $paths) { if (Test-Path $p) { Remove-Item $p -Recurse -Force } }
+Write-Host "     Cleaned" -ForegroundColor $ColorSuccess
+
+# Update package.json inline with Node
+Write-Host "[*] Fixing package.json..." -ForegroundColor $ColorPrimary
+node -e "const fs=require('fs'),path=require('path');const p=path.join(__dirname,'package.json');const pkg=JSON.parse(fs.readFileSync(p,'utf8'));const dirs=fs.readdirSync('packages').filter(n=>fs.statSync(path.join('packages',n)).isDirectory()&&fs.existsSync(path.join('packages',n,'package.json')));pkg.workspaces.packages=dirs.map(d=>'packages/'+d);fs.writeFileSync(p,JSON.stringify(pkg,null,2)+'\n');console.log('Fixed:',dirs.length,'packages')"
+
+# Install
+Write-Host "[*] Installing..." -ForegroundColor $ColorPrimary
+bun install --no-save
+
+# Setup
 $BinDir = "$env:USERPROFILE\.agents-r\bin"
-if (-not (Test-Path $BinDir)) {
-    New-Item -ItemType Directory -Force -Path $BinDir | Out-Null
+if (-not (Test-Path $BinDir)) { New-Item -ItemType Directory -Force -Path $BinDir | Out-Null }
+
+"@echo off`ncd /d `"$InstallDir`"`nbun run dev %*" | Out-File "$BinDir\agents-r.cmd" -Encoding ASCII
+
+$cp = [Environment]::GetEnvironmentVariable("PATH", "User")
+if ($cp -notlike "*$BinDir*") {
+    [Environment]::SetEnvironmentVariable("PATH", "$cp;$BinDir", "User")
+    $env:PATH += ";$BinDir"
 }
 
-# Create launcher script
-$LauncherPath = "$BinDir\agents-r.ps1"
-@"
-# Agents R Launcher
-& "$InstallDir\packages\tui\src\index.ts" `@args
-"@ | Out-File -FilePath $LauncherPath -Encoding UTF8
-
-# Add to PATH
-$CurrentPath = [Environment]::GetEnvironmentVariable("PATH", "User")
-if ($CurrentPath -notlike "*$BinDir*") {
-    Write-Step "Adding to PATH..."
-    [Environment]::SetEnvironmentVariable("PATH", "$CurrentPath;$BinDir", "User")
-    Write-Success "Added to user PATH"
-}
-
-# Create desktop shortcut (optional)
-$DesktopPath = [Environment]::GetFolderPath("Desktop")
-$ShortcutPath = "$DesktopPath\Agents R.lnk"
-
-$WshShell = New-Object -ComObject WScript.Shell
-$Shortcut = $WshShell.CreateShortcut($ShortcutPath)
-$Shortcut.TargetPath = "powershell.exe"
-$Shortcut.Arguments = "-NoExit -Command `"cd '$InstallDir'; bun run dev`""
-$Shortcut.WorkingDirectory = $InstallDir
-$Shortcut.IconLocation = "powershell.exe,0"
-$Shortcut.Save()
-
-Write-Success "Desktop shortcut created"
-
-# Success message
 Write-Host ""
-Write-Host "  ╔════════════════════════════════════════╗" -ForegroundColor $ColorSuccess
-Write-Host "  ║                                        ║" -ForegroundColor $ColorSuccess
-Write-Host "  ║   Agents R installed successfully!    ║" -ForegroundColor $ColorSuccess
-Write-Host "  ║                                        ║" -ForegroundColor $ColorSuccess
-Write-Host "  ╚════════════════════════════════════════╝" -ForegroundColor $ColorSuccess
+Write-Host "  [OK] Agents R installed!" -ForegroundColor $ColorSuccess
 Write-Host ""
-Write-Host "  Quick Start:" -ForegroundColor $ColorPrimary
-Write-Host ""
-Write-Host "  1. Restart your terminal" -ForegroundColor $ColorSuccess
-Write-Host "  2. Run: agents-r" -ForegroundColor $ColorSuccess
-Write-Host "  3. Or use desktop shortcut" -ForegroundColor $ColorSuccess
-Write-Host ""
-Write-Host "  Manual Start:" -ForegroundColor $ColorPrimary
-Write-Host ""
-Write-Host "  cd $InstallDir" -ForegroundColor $ColorSuccess
-Write-Host "  bun run dev" -ForegroundColor $ColorSuccess
-Write-Host ""
-Write-Host "  Documentation:" -ForegroundColor $ColorPrimary
-Write-Host ""
-Write-Host "  https://github.com/tkjij77-ctrl/Agents-R" -ForegroundColor $ColorSuccess
+Write-Host "  Run: agents-r" -ForegroundColor $ColorPrimary
 Write-Host ""
