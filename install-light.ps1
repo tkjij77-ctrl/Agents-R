@@ -25,7 +25,7 @@ catch {
 try { git --version | Out-Null; Write-Host "[OK] Git" -ForegroundColor $ColorSuccess }
 catch { Write-Host "[!] Git required" -ForegroundColor $ColorError; exit 1 }
 
-# Shallow clone (only latest commit - much faster)
+# Shallow clone
 $InstallDir = "$env:USERPROFILE\agents-r"
 if (Test-Path $InstallDir) {
     Write-Host "[*] Updating..." -ForegroundColor $ColorPrimary
@@ -37,11 +37,11 @@ if (Test-Path $InstallDir) {
     Set-Location $InstallDir
 }
 
-# Delete heavy unnecessary files BEFORE install
+# Delete heavy unnecessary files
 Write-Host "[*] Removing unnecessary files..." -ForegroundColor $ColorPrimary
 
 $deletePaths = @(
-    "README.*.md",  # All translated READMEs
+    "README.*.md",
     "artifacts",
     "packages/docs",
     "packages/web",
@@ -72,9 +72,53 @@ foreach ($path in $deletePaths) {
 }
 Write-Host "     Removed $deleted large directories" -ForegroundColor $ColorSuccess
 
-# Install ONLY required packages
+# Update package.json workspaces to match remaining packages
+Write-Host "[*] Updating package.json..." -ForegroundColor $ColorPrimary
+
+$pkg = Get-Content "package.json" -Raw | ConvertFrom-Json
+
+# Keep only existing workspace packages
+$existingWorkspaces = @()
+foreach ($pkg_path in @("packages/*", "packages/console/*", "packages/stats/*", "packages/sdk/js")) {
+    if ($pkg_path -like "*/*/*") {
+        # Skip nested patterns
+        continue
+    }
+    $basePath = $pkg_path -replace "\*", ""
+    $basePath = $basePath -replace "/", ""
+    if ($basePath -eq "packages") {
+        # Check each package folder
+        if (Test-Path "packages/core") { $existingWorkspaces += "packages/core" }
+        if (Test-Path "packages/tui") { $existingWorkspaces += "packages/tui" }
+        if (Test-Path "packages/llm") { $existingWorkspaces += "packages/llm" }
+        if (Test-Path "packages/multi-agent") { $existingWorkspaces += "packages/multi-agent" }
+        if (Test-Path "packages/protocol") { $existingWorkspaces += "packages/protocol" }
+        if (Test-Path "packages/schema") { $existingWorkspaces += "packages/schema" }
+        if (Test-Path "packages/plugin") { $existingWorkspaces += "packages/plugin" }
+        if (Test-Path "packages/server") { $existingWorkspaces += "packages/server" }
+        if (Test-Path "packages/client") { $existingWorkspaces += "packages/client" }
+        if (Test-Path "packages/enterprise") { $existingWorkspaces += "packages/enterprise" }
+        if (Test-Path "packages/function") { $existingWorkspaces += "packages/function" }
+        if (Test-Path "packages/http-recorder") { $existingWorkspaces += "packages/http-recorder" }
+        if (Test-Path "packages/httpapi-codegen") { $existingWorkspaces += "packages/httpapi-codegen" }
+        if (Test-Path "packages/identity") { $existingWorkspaces += "packages/identity" }
+        if (Test-Path "packages/script") { $existingWorkspaces += "packages/script" }
+        if (Test-Path "packages/sdk") { $existingWorkspaces += "packages/sdk" }
+        if (Test-Path "packages/session-ui") { $existingWorkspaces += "packages/session-ui" }
+        if (Test-Path "packages/ui") { $existingWorkspaces += "packages/ui" }
+        break
+    }
+}
+
+if ($existingWorkspaces.Count -gt 0) {
+    $pkg.workspaces.packages = $existingWorkspaces
+    $pkg | ConvertTo-Json -Depth 10 | Set-Content "package.json" -Encoding UTF8
+    Write-Host "     Updated workspaces: $($existingWorkspaces.Count) packages" -ForegroundColor $ColorSuccess
+}
+
+# Install minimal dependencies
 Write-Host "[*] Installing minimal dependencies..." -ForegroundColor $ColorPrimary
-bun install --no-save --filter @opencode-ai/multi-agent --filter @opencode-ai/tui
+bun install --no-save
 
 # Setup
 $BinDir = "$env:USERPROFILE\.agents-r\bin"
