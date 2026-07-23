@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@opencode-ai/multi-agent",
+  "version": "0.1.0",
+  "description": "Multi-Agent collaboration system for OpenCode - orchestrator, consensus, and delegation",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@opencode-ai/llm": "workspace:*",
+    "@opencode-ai/schema": "workspace:*",
+    "effect": "catalog:",
+    "zod": "catalog:",
+    "remeda": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "typescript": "catalog:"
+  }
+}
